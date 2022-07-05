@@ -42,4 +42,4 @@ if __name__ == '__main__':
 
     t2 = time.perf_counter()
 
-    print(f'Finished in {round(t2-t1, 0)} seconds')
+    print(f'Finished in {round(t2-t1, 2)} seconds')
