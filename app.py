@@ -8,12 +8,13 @@ class Formatting(object):
     word = win32com.client.gencache.EnsureDispatch('Word.Application')
     word.Visible = True
 
-    def __init__(self, input_path, output_path, orig_doc_name, final_doc_name):
+    def __init__(self, input_path, output_path, doc_name, old_regex, new_regex):
         self.input_path = input_path
         self.output_path = output_path
-        self.orig_doc_name = orig_doc_name
-        self.doc = self.word.Documents.Open(input_path + orig_doc_name)
-        self.final_doc_name = final_doc_name
+        self.doc_name = doc_name
+        self.doc = self.word.Documents.Open(input_path + doc_name)
+        self.old_regex = old_regex
+        self.new_regex = new_regex
 
     
     def show_changes(self):
@@ -53,38 +54,36 @@ class Formatting(object):
             )
 
 
-    def replace_regex(self, old_regex, new_regex):
+    def replace_regex(self):
         for p in range(1, self.doc.Paragraphs.Count):
             paragraph = self.doc.Paragraphs(p)
             current_text = paragraph.Range.Text
 
-            if re.search(old_regex, current_text):
-                paragraph.Range.Text = re.sub(old_regex, new_regex, current_text)
+            if re.search(self.old_regex, current_text):
+                paragraph.Range.Text = re.sub(self.old_regex, self.new_regex, current_text)
 
 
-    def edit_dates(self, regexp, symbol):
+    def edit_dates(self, regexp, old_symbol, new_symbol):
         for p in range(1, self.doc.Paragraphs.Count):
             paragraph = self.doc.Paragraphs(p)
             current_text = paragraph.Range.Text
 
             if re.search(regexp, current_text):
-                paragraph.Range.Text = re.search(regexp, current_text).group().replace(symbol, '.')
+                paragraph.Range.Text = re.search(regexp, current_text).group().replace(old_symbol, new_symbol)
 
 
-    def format_dates(self):
-        long_re = r"\d{1,2} (?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря) \d{4}"
-
+    def format_dates(self, month_re, date_format, date_symbol):
         for p in range(1, self.doc.Paragraphs.Count):
             paragraph = self.doc.Paragraphs(p)
             current_text = paragraph.Range.Text
 
-            if re.search(long_re, current_text):
-                match = re.search(long_re, current_text).group()
-                parse_date = datetime.datetime.strptime(self.convert_date(match), "%d,%m,%Y")
-                new_date = parse_date.strftime("%d.%m.%Y")
+            if re.search(month_re, current_text):
+                match = re.search(month_re, current_text).group()
+                parse_date = datetime.datetime.strptime(self.convert_date(match, date_symbol), date_format)
+                new_date = parse_date.strftime(date_format)
                 paragraph.Range.Text = re.sub(match, new_date, current_text)
 
-    def convert_date(self, text):
+    def convert_date(self, text, date_symbol):
         integers = []
         for m in text.split(' '):
             if m in months:
@@ -92,7 +91,7 @@ class Formatting(object):
             else:
                 integers.append(m)
         
-        integers = ','.join(str(x) for x in integers)
+        integers = date_symbol.join(str(x) for x in integers)
         return integers
 
     
@@ -106,9 +105,7 @@ class Formatting(object):
         def edit_element(element):
             for key, value in replace_dict.items():
                 element.Range.Text = element.Range.Text.replace(key, value)
-
-            element.Range.Text = re.sub(r"\"(.*?)\"", r"«\1»", element.Range.Text)
-            element.Range.Text = re.sub(r"\“(.*?)\”", r"«\1»", element.Range.Text)
+            element.Range.Text = re.sub(self.old_regex, self.new_regex, element.Range.Text)
 
         edit_element(header_primary)
         edit_element(header_fp)
@@ -123,5 +120,5 @@ class Formatting(object):
 
 
     def close_doc(self):
-        self.doc.SaveAs(self.output_path + self.final_doc_name)
+        self.doc.SaveAs(self.output_path + self.doc_name)
         self.doc.Close()
